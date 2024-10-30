@@ -1,0 +1,308 @@
+<html><head><base href="/">
+<title>Pomodoro Timer with Notion Integration</title>
+<style>
+:root {
+  --primary: #ff4b4b;
+  --secondary: #4ca6ff;
+  --text: #2f3037;
+  --background: #f5f5f5;
+  --card: #ffffff;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--background);
+  color: var(--text);
+}
+
+.container {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+
+.timer-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.timer-display {
+  font-size: 6rem;
+  font-weight: 700;
+  margin: 2rem 0;
+  color: var(--primary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.btn {
+  padding: 0.8rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-secondary {
+  background: var(--secondary);
+  color: white;
+}
+
+.task-list {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.task-item:hover {
+  background: #f8f8f8;
+}
+
+.task-item.active {
+  background: #fff4f4;
+}
+
+.task-checkbox {
+  margin-right: 1rem;
+}
+
+.connect-notion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2rem 0;
+}
+
+.progress-ring {
+  transform: rotate(-90deg);
+  margin: 1rem auto;
+}
+
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.35s;
+  transform: rotate(0deg);
+  transform-origin: 50% 50%;
+  stroke: var(--primary);
+}
+
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="timer-card">
+    <h1>Pomodoro Timer</h1>
+    <svg class="progress-ring" width="200" height="200">
+      <circle
+        class="progress-ring-circle"
+        stroke-width="8"
+        fill="transparent"
+        r="90"
+        cx="100"
+        cy="100"
+      />
+    </svg>
+    <div class="timer-display" id="timer">25:00</div>
+    <div class="controls">
+      <button class="btn btn-primary" id="startBtn">Start</button>
+      <button class="btn btn-secondary" id="resetBtn">Reset</button>
+    </div>
+    <select id="timerType" class="btn">
+      <option value="25">Pomodoro (25min)</option>
+      <option value="5">Short Break (5min)</option>
+      <option value="15">Long Break (15min)</option>
+    </select>
+  </div>
+
+  <div class="connect-notion">
+    <button class="btn btn-secondary" id="connectNotion">Connect Notion Database</button>
+  </div>
+
+  <div class="task-list">
+    <h2>Notion Tasks</h2>
+    <div id="taskContainer"></div>
+  </div>
+</div>
+
+<script>
+class PomodoroTimer {
+  constructor() {
+    this.timeLeft = 25 * 60;
+    this.initialTime = 25 * 60;
+    this.isRunning = false;
+    this.timer = null;
+    this.currentTask = null;
+    
+    this.timerDisplay = document.getElementById('timer');
+    this.startBtn = document.getElementById('startBtn');
+    this.resetBtn = document.getElementById('resetBtn');
+    this.timerType = document.getElementById('timerType');
+    this.connectNotionBtn = document.getElementById('connectNotion');
+    this.taskContainer = document.getElementById('taskContainer');
+    
+    this.circle = document.querySelector('.progress-ring-circle');
+    this.radius = this.circle.r.baseVal.value;
+    this.circumference = 2 * Math.PI * this.radius;
+    
+    this.circle.style.strokeDasharray = `${this.circumference} ${this.circumference}`;
+    this.circle.style.strokeDashoffset = this.circumference;
+    
+    this.setupEventListeners();
+    this.updateDisplay();
+  }
+
+  setupEventListeners() {
+    this.startBtn.addEventListener('click', () => this.toggleTimer());
+    this.resetBtn.addEventListener('click', () => this.resetTimer());
+    this.timerType.addEventListener('change', () => this.changeTimerType());
+    this.connectNotionBtn.addEventListener('click', () => this.connectNotion());
+  }
+
+  toggleTimer() {
+    if (this.isRunning) {
+      this.pauseTimer();
+      this.startBtn.textContent = 'Start';
+    } else {
+      this.startTimer();
+      this.startBtn.textContent = 'Pause';
+    }
+  }
+
+  startTimer() {
+    this.isRunning = true;
+    this.timer = setInterval(() => {
+      this.timeLeft--;
+      this.updateDisplay();
+      
+      if (this.timeLeft <= 0) {
+        this.completeTimer();
+      }
+    }, 1000);
+  }
+
+  pauseTimer() {
+    this.isRunning = false;
+    clearInterval(this.timer);
+  }
+
+  resetTimer() {
+    this.pauseTimer();
+    this.timeLeft = this.initialTime;
+    this.updateDisplay();
+    this.startBtn.textContent = 'Start';
+  }
+
+  completeTimer() {
+    this.pauseTimer();
+    this.playNotification();
+    if (this.currentTask) {
+      this.updateTaskProgress();
+    }
+  }
+
+  updateDisplay() {
+    const minutes = Math.floor(this.timeLeft / 60);
+    const seconds = this.timeLeft % 60;
+    this.timerDisplay.textContent = 
+      `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    
+    const progress = (this.initialTime - this.timeLeft) / this.initialTime;
+    const offset = this.circumference * (1 - progress);
+    this.circle.style.strokeDashoffset = offset;
+  }
+
+  changeTimerType() {
+    const minutes = parseInt(this.timerType.value);
+    this.initialTime = minutes * 60;
+    this.timeLeft = this.initialTime;
+    this.resetTimer();
+  }
+
+  async connectNotion() {
+    // In a real implementation, this would handle OAuth with Notion
+    const mockTasks = [
+      { id: 1, title: 'Complete Project Proposal', completed: false },
+      { id: 2, title: 'Review Code Changes', completed: false },
+      { id: 3, title: 'Write Documentation', completed: false }
+    ];
+    
+    this.renderTasks(mockTasks);
+  }
+
+  renderTasks(tasks) {
+    this.taskContainer.innerHTML = tasks.map(task => `
+      <div class="task-item ${task.completed ? 'completed' : ''}" data-id="${task.id}">
+        <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}>
+        <span>${task.title}</span>
+      </div>
+    `).join('');
+
+    this.taskContainer.querySelectorAll('.task-item').forEach(taskEl => {
+      taskEl.addEventListener('click', () => this.selectTask(taskEl.dataset.id));
+    });
+  }
+
+  selectTask(taskId) {
+    document.querySelectorAll('.task-item').forEach(el => {
+      el.classList.remove('active');
+    });
+    const taskEl = document.querySelector(`[data-id="${taskId}"]`);
+    taskEl.classList.add('active');
+    this.currentTask = taskId;
+  }
+
+  updateTaskProgress() {
+    // In a real implementation, this would update the Notion database
+    if (this.currentTask) {
+      const taskEl = document.querySelector(`[data-id="${this.currentTask}"]`);
+      taskEl.querySelector('.task-checkbox').checked = true;
+      taskEl.classList.add('completed');
+    }
+  }
+
+  playNotification() {
+    // Create and play a notification sound
+    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PurWMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DurGIdBi+Kz+/TgjMGG23B7+OZSA0PVqzn66xdGAg8ltryxnMpBSWAy/Dck0AKFlyx6OyrWBIJPJPY8cx8LgUfb8Hu55JGDRFTqebrsF8ZCDmT2fPHdCwEJHvJ8d+SPQoVW67n7athFQc5kNfzyn4vBR5pwO7okEgMD1Cp5euxYBoIM4/Y88p4LAQhesfw4pU/ChNXrObtrmIWBjiO1vLLgDEEHWW+7euTSw0PT6fl77NiGggxjdbyzHstBCB3xe/klEAJEVOq5O+xZBgHNovU8s6CMQUcYrzs7pZNDg9MpOPwtGUcCDCJ0/LQgC8FHnLD7umXQgwQUKfi8bNnGwcziNLy0IUzBRxdt+rulE4OD0mi4fC1Zx0LLofQ8tGDMwYfa8Dt65lFDBBNot/ytWkcCTCG0PHShzUGHVu16+2XUA4PSKDf8bZpHgsthc7y1Ic2Bhxls+rsmUcMD0uf3vK3bB4LLoPO8dOLOQYbWLPq7JtKDhBHnt3xuGwfDCuBzPLWizgGG1Wx6e2dTA4PRpzc8rlvIAwtf8rx144/CBpTr+jtnU8QEEWb2/K7cSEPKn/J8diPQAkZUK3n751RERBDmdryvHMjDyl9x/HakUQKGE2r5O+gVBIRQZjZ8r51JRAoecbw2pRGCxlKqeXwpFkUE0GW2PK/eCcQJ3vF79yWSgsYSafj8aRdFhQ+lNbwwXspESZ5w+7dl0wMGkek4fGmYBgWPZLU8MJ8KxIleMHt35lPDhlHot/yqGMaGDyQ0u/EgS4TJHa/7N+bUQ8aRaDe8qplHBo8jdDvxYYxFCNzve3gmVIQGkOe3fKsaB4cO4rO7saJMxQicsHs4JtUERlBm9zzrmsgHjqIyu7IjDYXInG77OGdVxIbP5jb87BuJB85hsjuyY86GSFvuezinVkUHD2V2fOwcSYgOYPG7cuRPRoib7fq459bFR08lNfzsXQoIjmCxOzMlEEcIW617OShXhYfOpLV87N3KyQ4f8Hsy5dEHyNss+ninmAYIDmQ1PO0ei4mOHy/68yaSCEkabHp5KNgGiI3jdLytnsxJzZ6vurOoEsjJmev6OamZBwlNYvQ8rd+NCk1d7vpz6NOJSVlrufmqGYfKDOIzvG4gjcqM3S46dCmUScmYqzl565oISovhczwuo4+LjJwtufRqVcpKGCq4+ixbCYuLYHK77yTRC8wbLTl0q1bLCtepeLquHEqMiuBx+69lkgyL2iy49SxYDEtXKPh67x2MDUqfMXtv5pLNTBoreDVtGQ0MFmg3+2+ezM3KHjC68GfUDcyZqrd1bdoNzRXnN3twIA3OSd2wOvEpFQ6Nl6o29a6bjo3VZra7sOHPDwmcb3qxahXPTlbptnXvXI9PE+W2O7GjUI/KXO56MesW0A8WaXX2L92QUFNkdXtyJFHRC1tt+fJsV9DQFaf1dnBfUdGS43T7MuVTUgxabXlyLVjR0VTm9LazINLTElxsObLuGlLSlCY0NvOiFJQT22t48y7bk5OU5bO2dCEVlJNa6vizbtyUVBQk8zZ0ohZVlBmqeDOvndUVE2QydfTjF1YUmOm3s/Be1hYTYzH1dWQYVtXYKPcz8SAXFxKiMXU15RkXltdn9rQxYRfYEiFwtPYmGhhYFmc2dHIiWNkRoHA0dmbamVmW5nW0MqOaGlEgrjN2Z5yb3Bak9DFzJNsb0J9tcvbo3d0dFmNysPPmXN2Qnmyyd2mfXh5WYjFwNKde3s+dq7G36qDfX1YhMG+1KGAgz10qsTerop'},400);
+    audio.play();
+  }
+}
+
+const pomodoro = new PomodoroTimer();
+</script>
+</body></html>
